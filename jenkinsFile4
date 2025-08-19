@@ -1,0 +1,40 @@
+pipeline {
+    agent any
+    tools {
+        maven 'Maven3' // Matches name in Jenkins Tools
+    }
+    environment {
+        SONAR_TOKEN = credentials('sonar-t')
+    }
+    stages {
+        stage("Checkout Code") {
+            steps {
+                git 'https://github.com/balisaiprasad/addressbook-cicd-project'
+            }
+        }
+        stage("Build & Package") {
+            steps {
+                sh 'mvn -B clean package'
+            }
+        }
+        stage("SonarQube Analysis") {
+            steps {
+                withSonarQubeEnv('SonarQube') {
+                    sh "mvn -B sonar:sonar -Dsonar.host.url=http://localhost:9000 -Dsonar.login=${env.SONAR_TOKEN}"
+                }
+            }
+        }
+        stage("Quality Gate") {
+            steps {
+                timeout(time: 10, unit: 'MINUTES') {
+                    waitForQualityGate abortPipeline: true
+                }
+            }
+        }
+        stage("Deploy to Tomcat") {
+            steps {
+                sh "sudo cp ${WORKSPACE}/target/addressbook.war /home/ubuntu/apache-tomcat-9.0.108/webapps/"
+            }
+        }
+    }
+}
